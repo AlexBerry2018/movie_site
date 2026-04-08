@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}{{ film.title }}{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <img src="{{ film.poster_url }}" class="img-fluid rounded" alt="{{ film.title }}">
+    </div>
+    <div class="col-md-8">
+        <h1>{{ film.title }} ({{ film.release_date|slice:":4" }})</h1>
+        <p><strong>Режиссёры:</strong> {{ film.directors }}</p>
+        <p><strong>Актёры:</strong> {{ film.actors }}</p>
+        <p><strong>Средняя оценка:</strong> <span id="avg-rating">{{ avg_rating|floatformat:1 }}</span> / 10</p>
+        <button id="fav-btn" class="btn btn-outline-danger" data-filmid="{{ film.id }}">
+            {% if film in user.favorites.all %}❤️ Убрать{% else %}🤍 В избранное{% endif %}
+        </button>
+        {% if film.trailer_key %}
+            <div class="ratio ratio-16x9 mt-3">
+                <iframe src="https://www.youtube.com/embed/{{ film.trailer_key }}" allowfullscreen></iframe>
+            </div>
+        {% endif %}
+    </div>
+</div>
+<hr>
+<h3>Отзывы</h3>
+<div id="reviews-list">
+    {% for review in film.reviews.all %}
+        <div class="card mt-2" data-review-id="{{ review.id }}">
+            <div class="card-body">
+                <strong>{{ review.user.username }}</strong> – {{ review.rating }}/10
+                <p>{{ review.text }}</p>
+                {% if review.user == user %}
+                    <button class="btn btn-sm btn-danger delete-review-btn">Удалить</button>
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% if user.is_authenticated and not user.is_banned %}
+    <form id="review-form" class="mt-3">
+        {% csrf_token %}
+        <div class="mb-2"><label>Оценка (1-10)</label><input type="number" name="rating" min="1" max="10" required class="form-control"></div>
+        <div class="mb-2"><label>Отзыв</label><textarea name="text" rows="3" class="form-control" required></textarea></div>
+        <button type="submit" class="btn btn-primary">Оставить отзыв</button>
+    </form>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+    const filmId = {{ film.id|default:'null' }};
+    if (filmId === null) {
+        console.error('Film ID not provided');
+    } else {
+        // Избранное
+        const favBtn = document.getElementById('fav-btn');
+        if (favBtn) {
+            favBtn.addEventListener('click', async function() {
+                const resp = await fetch(`/api/films/${filmId}/favorite/`, { method: 'POST', headers: { 'X-CSRFToken': csrf_token } });
+                const data = await resp.json();
+                if (data.status === 'added') this.innerHTML = '❤️ Убрать';
+                else this.innerHTML = '🤍 В избранное';
+            });
+        }
+        // Отправка отзыва
+        const reviewForm = document.getElementById('review-form');
+        if (reviewForm) {
+            reviewForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const rating = reviewForm.querySelector('input[name="rating"]').value;
+                const text = reviewForm.querySelector('textarea[name="text"]').value;
+                const resp = await fetch(`/api/films/${filmId}/reviews/`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf_token },
+                    body: JSON.stringify({ rating, text })
+                });
+                if (resp.ok) location.reload();
+                else alert('Ошибка при добавлении отзыва');
+            });
+        }
+        // Удаление отзыва
+        document.querySelectorAll('.delete-review-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const card = btn.closest('[data-review-id]');
+                const reviewId = card.dataset.reviewId;
+                await fetch(`/api/reviews/${reviewId}/`, { method: 'DELETE', headers: { 'X-CSRFToken': csrf_token } });
+                card.remove();
+                // Обновить среднюю оценку
+                const avgResp = await fetch(`/api/films/${filmId}/reviews/`);
+                const reviews = await avgResp.json();
+                let sum = 0;
+                reviews.forEach(r => sum += r.rating);
+                const newAvg = reviews.length ? (sum / reviews.length).toFixed(1) : 0;
+                document.getElementById('avg-rating').innerText = newAvg;
+            });
+        });
+    }
+</script>
+{% endblock %}
