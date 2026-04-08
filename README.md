@@ -10,7 +10,7 @@
 1. Клонировать репозиторий
 
    ```bash
-   git clone https://github.com/ваш_username/movie-catalog.git
+   git clone https://github.com/AlexBerry2018/movie-catalog.git
    cd movie-catalog
    ```
 2. Создать виртуальное окружение
@@ -27,7 +27,7 @@
 4. Создать файл .env в корне проекта:
 
    ```env
-   SECRET_KEY=сгенерируйте_командой_ниже
+   SECRET_KEY=ваш_секретный_ключ
    TMDB_API_KEY=ваш_ключ_tmdb
    DB_NAME=movie_db
    DB_USER=postgres
